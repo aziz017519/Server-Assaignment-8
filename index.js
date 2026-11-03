@@ -11,9 +11,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ===============================
-// Middleware
-// ===============================
+
 
 app.use(
   cors({
@@ -24,12 +22,10 @@ app.use(
 
 app.use(express.json());
 
-// Better Auth route
+
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
-// ===============================
-// Authentication Middleware
-// ===============================
+
 
 const requireAuth = async (req, res, next) => {
   try {
@@ -56,19 +52,13 @@ const requireAuth = async (req, res, next) => {
   }
 };
 
-// ===============================
-// Home Route
-// ===============================
+
 
 app.get("/", (req, res) => {
   res.send("Welcome to StudioSpace Server!");
 });
 
-// ===============================
-// STUDIO APIs
-// ===============================
 
-// Get all studios
 app.get("/api/studios", async (req, res) => {
   try {
     const studios = await db
@@ -92,8 +82,7 @@ app.get("/api/studios", async (req, res) => {
   }
 });
 
-// Get logged-in user's studios
-// IMPORTANT: Keep this route before /api/studios/:id
+
 app.get("/api/studios/my", requireAuth, async (req, res) => {
   try {
     const studios = await db
@@ -117,7 +106,7 @@ app.get("/api/studios/my", requireAuth, async (req, res) => {
   }
 });
 
-// Get single studio
+
 app.get("/api/studios/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -154,7 +143,7 @@ app.get("/api/studios/:id", async (req, res) => {
   }
 });
 
-// Add new studio
+
 app.post("/api/studios", requireAuth, async (req, res) => {
   try {
     const {
@@ -341,7 +330,7 @@ app.put("/api/studios/:id", requireAuth, async (req, res) => {
   }
 });
 
-// Delete studio
+
 app.delete("/api/studios/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -379,11 +368,9 @@ app.delete("/api/studios/:id", requireAuth, async (req, res) => {
   }
 });
 
-// ===============================
-// BOOKING APIs
-// ===============================
 
-// Create booking
+
+
 app.post("/api/bookings", requireAuth, async (req, res) => {
   try {
     const { studioId, bookingDate, startTime, duration } = req.body;
@@ -474,7 +461,7 @@ app.post("/api/bookings", requireAuth, async (req, res) => {
   }
 });
 
-// Get logged-in user's bookings
+
 app.get("/api/bookings/my", requireAuth, async (req, res) => {
   try {
     const bookings = await db
@@ -498,7 +485,7 @@ app.get("/api/bookings/my", requireAuth, async (req, res) => {
   }
 });
 
-// Cancel pending booking
+
 app.patch("/api/bookings/:id/cancel", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -545,11 +532,8 @@ app.patch("/api/bookings/:id/cancel", requireAuth, async (req, res) => {
   }
 });
 
-// ===============================
-// Test Route
-// ===============================
 
-// Development only: view all bookings
+
 app.get("/api/test-bookings", async (req, res) => {
   try {
     const bookings = await db
@@ -573,9 +557,7 @@ app.get("/api/test-bookings", async (req, res) => {
   }
 });
 
-// ===============================
-// Start Server
-// ===============================
+
 
 app.listen(PORT, () => {
   console.log(`StudioSpace Server running on port ${PORT}`);
