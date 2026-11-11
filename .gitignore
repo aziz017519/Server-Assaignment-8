@@ -1,5 +1,7 @@
-Set-Content .gitignore "node_modules/
+node_modules/
 .env
 .env.*
-!.env.example"
-node_modules/
+!.env.example
+.vercel
+.DS_Store
+npm-debug.log*

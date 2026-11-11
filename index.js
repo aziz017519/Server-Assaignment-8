@@ -2,35 +2,41 @@
 import { ObjectId } from "mongodb";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import { toNodeHandler } from "better-auth/node";
+import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import { auth, db } from "./auth.js";
-
-dotenv.config();
+import { isOriginAllowed } from "./config.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin(origin, callback) {
+      // Requests without an Origin header (curl, server-to-server) are allowed.
+      callback(null, isOriginAllowed(origin));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 204,
   })
 );
 
-app.use(express.json());
-
-
+// Better Auth must receive the raw request body, so it has to be mounted
+// BEFORE express.json().
 app.all("/api/auth/*splat", toNodeHandler(auth));
+
+app.use(express.json({ limit: "1mb" }));
 
 
 
 const requireAuth = async (req, res, next) => {
   try {
     const session = await auth.api.getSession({
-      headers: req.headers,
+      headers: fromNodeHeaders(req.headers),
     });
 
     if (!session || !session.user) {
@@ -56,6 +62,27 @@ const requireAuth = async (req, res, next) => {
 
 app.get("/", (req, res) => {
   res.send("Welcome to StudioSpace Server!");
+});
+
+
+app.get("/api/health", async (req, res) => {
+  try {
+    await db.command({ ping: 1 });
+
+    res.status(200).json({
+      success: true,
+      status: "ok",
+      database: db.databaseName,
+    });
+  } catch (error) {
+    console.error("Health check error:", error);
+
+    res.status(503).json({
+      success: false,
+      status: "unavailable",
+      message: "Database connection failed",
+    });
+  }
 });
 
 
@@ -534,31 +561,69 @@ app.patch("/api/bookings/:id/cancel", requireAuth, async (req, res) => {
 
 
 
-app.get("/api/test-bookings", async (req, res) => {
-  try {
-    const bookings = await db
-      .collection("bookings")
-      .find({})
-      .toArray();
+// Debug endpoint: only available outside production so booking data is never
+// exposed publicly.
+if (process.env.NODE_ENV !== "production") {
+  app.get("/api/test-bookings", async (req, res) => {
+    try {
+      const bookings = await db
+        .collection("bookings")
+        .find({})
+        .toArray();
 
-    res.status(200).json({
-      success: true,
-      database: db.databaseName,
-      total: bookings.length,
-      data: bookings,
-    });
-  } catch (error) {
-    console.error("Test bookings error:", error);
+      res.status(200).json({
+        success: true,
+        database: db.databaseName,
+        total: bookings.length,
+        data: bookings,
+      });
+    } catch (error) {
+      console.error("Test bookings error:", error);
 
-    res.status(500).json({
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch bookings",
+      });
+    }
+  });
+}
+
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+  });
+});
+
+// Error handler (keeps Vercel functions healthy instead of leaking stack traces)
+app.use((error, req, res, next) => {
+  console.error("Unhandled error:", error);
+
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  if (error?.type === "entity.parse.failed") {
+    return res.status(400).json({
       success: false,
-      message: "Failed to fetch bookings",
+      message: "Invalid JSON body",
     });
   }
+
+  res.status(500).json({
+    success: false,
+    message: "Internal server error",
+  });
 });
 
 
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`StudioSpace Server running on port ${PORT}`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`StudioSpace Server running on port ${PORT}`);
-});
+export default app;
+
